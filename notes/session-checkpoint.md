@@ -3,28 +3,29 @@ Run Alex as a custom Pi workspace using gbrain's memory-only integration. Alex's
 
 # Current State
 - Workspace: `/home/poop/Alex-workspace`.
-- Latest commit: `cccfa1b remove custom facts handling from gbrain page bridge`; working tree is clean and this commit is one commit ahead of `origin/main`.
+- Latest committed change: `cccfa1b remove custom facts handling from gbrain page bridge`; Alex workspace has uncommitted ambient/source-routing/graph-tool edits and remains one commit ahead of `origin/main`.
 - Removed legacy `MEMORY.md` and `memory/`; these were Alex's old filesystem-memory layer, not gbrain components. `ideas/` and authored identity files remain preserved.
 - `.gbrain-source` pins the workspace source to `workspace`; `gbrain sources current --json` resolves `source_id: workspace`.
-- `.pi/extensions/gbrain.ts` registers and active-injects all ten Pi bridge tools: `gbrain_recall`, `gbrain_remember`, `gbrain_entity`, `gbrain_synthesize`, `gbrain_context_pack`, `gbrain_delta`, `gbrain_forget`, `gbrain_add_timeline_entry`, `gbrain_get_page`, and `gbrain_put_page`.
-- The bridge tools invoke native gbrain CLI operations with `pi.exec`; `gbrain_forget` uses native `gbrain call forget`. They are retained so a creative agent can perform the exposed memory operations without Bash while Pi has no MCP.
-- `gbrain_put_page` now delegates to native `gbrain put`, verifies with native `gbrain get`, and does NOT require the model to author a Facts fence or run a separate `extract_facts` phase. Gbrain owns Facts fences and reconciliation.
-- Before each non-command agent turn, the extension runs native `gbrain recall --source workspace --query <prompt> --budget-tokens 2000 --json` and injects returned facts/results as data. It does not read filesystem memory or capture transcripts. It no longer calls stop/session-end persistence hooks.
-- `.pi/extensions/agentmux.ts` discovers `/v1/models` at `http://127.0.0.1:8002/v1`, registers the local model with Pi, and syncs gbrain `models.default`. Pi-only fallback is `openai-codex/gpt-5.6-luna` at `xhigh`; gbrain-native work does not use that fallback.
-- Bun extension build passes with Pi/typebox marked external; `git diff --check` passes. Known LSP diagnostics are missing global Pi/typebox/node declarations, not new runtime failures.
-- Existing `/home/poop/.gbrain/brain.pglite` was not initialized, reset, reindexed, or written during this work. Autopilot/jobs and dream remain deferred. AgentMux on port 8002 is still down; no real local-model backstop test or approved real gbrain write has been performed.
+- `.pi/extensions/gbrain.ts` registers and active-injects the core memory/page tools plus timeline and graph operations: recall, remember, entity, synthesize, context pack, delta, forget, page get/put, timeline read/write, links/backlinks read, link add/remove, graph traversal, and link-source listing.
+- All bridge calls use the native `gbrain call --source workspace` operation surface, run from the workspace root, and pass `OPENAI_BASE_URL=http://127.0.0.1:8002/v1`, local `OPENAI_API_KEY=dummy`, and `--quiet`. Page, fact, timeline, and link writes perform read-back verification.
+- Ambient retrieval follows gbrain placement: confidence-gated `volunteer_context` per non-command turn; `context_pack` at session start and post-compaction; a session-cursor `delta` wake every eight turns. Full hybrid `recall` is explicit only. Trusted-local boundary/delta packs include private facts by deliberate creative-workspace policy. The rolling session window is used ephemerally for entity detection; no transcript archive or extraction is enabled.
+- Creative-memory policy is project/collaboration/problem-solving focused: Alex's thinking preferences, how Alex and Seth work together, durable project facts, decisions/rationale, reusable workflows, and lessons. Schedules, email, errands, raw transcripts, ordinary brainstorm fragments, and unconfirmed speculation are out of scope. Remember visibility defaults explicitly to `world` so useful context is not filtered out.
+- `.pi/extensions/agentmux.ts` discovers `/v1/models` at `http://127.0.0.1:8002/v1`, syncs the first advertised server id into gbrain `models.default`, and overlays only AgentMux endpoint/auth/compat settings in Pi. It deliberately does NOT provide a `models` array, preserving the curated `~/.pi/agent/models.json` local aliases. Workspace default is `agentmux/qw3.8-exl3`; `/alex-model` selects that alias. Pi-only fallback is `openai-codex/gpt-5.6-luna` at `xhigh`; gbrain-native work does not use that fallback.
+- Pi extension commands load; `/alex prompt stats/json` showed the authored prompt stack in the intended order. With the endpoint currently serving only `qw3.8-3.67-direct`, Pi's stable `agentmux/qw3.8-exl3` alias successfully completed a real `OK` request and the response reported the canonical server model. `pi --list-models` now shows all eight curated AgentMux aliases plus Codex models. Bun builds and `git diff --check` pass. LSP still reports missing workspace dependencies/types; print-mode exits remain unverified because Pi hangs after settling when extensions are loaded.
+- Runtime state: installed `gbrain` was upgraded to 0.46.30.0 and schema migration 141 applied; AgentMux port 8002 is down; full doctor reports stale workspace sync, one DB-only page with no backing file, no completed cycle, and no retrieval-reflex serve path. No brain reset/reindex/write was performed.
 
 # Decisions
-- Use gbrain memory-only mode, not `gbrain bootstrap`; Pi owns identity/runtime and gbrain owns memory.
-- Keep the ten Pi bridge tools and active-tool injection for the no-MCP Pi harness seam. Their underlying operations remain native CLI/gbrain calls; no second memory implementation exists.
-- Remove only the page bridge's invented Facts policy: no manual fence validation, no model-authored-fence requirement, and no per-write `extract_facts` invocation.
-- Treat `MEMORY.md`/`memory/` as legacy Alex filesystem memory, not as gbrain features. Their removal is part of making gbrain the sole memory system.
-- No transcript pipeline, git push hooks, or dream/autopilot operation is enabled by preference/deferment.
+- Treat the current workspace as a custom Pi creative agent with gbrain memory-only integration, not `gbrain bootstrap`; custom identity/runtime ownership is correct.
+- Keep no transcript capture/extraction for now. Gbrain's full bootstrap transcript/dream lane is a separate optional capability, not required for the memory-only protocol.
+- Preserve native gbrain operations and use the documented ambient placement. The trusted local creative workspace intentionally widens context_pack/delta visibility and defaults ordinary remembered facts to world visibility; this is not a new privacy system.
+- Do not expand fact/page verification or slug normalization yet; observe native gbrain behavior in real creative use first.
+- Pi model discovery is health/gbrain routing only; the curated models.json catalog owns visible/selectable aliases. A discovered server id is not injected as a replacement model.
 
 # Open Problems
-- Restart Pi so commit `cccfa1b` is loaded; verify all ten gbrain tools are active and a real pre-turn recall injection occurs.
-- Start the approved AgentMux model on port 8002, run `/alex-model`, and compare `/v1/models`, Pi's selected model, and `gbrain config get models.default`.
-- Perform one approved real `gbrain_remember` or `gbrain_put_page` write, verify native read-back/indexing, and separately validate the local model facts backstop when the worker/model path is available.
+- Decide whether to repair/export the orphan DB page and run `gbrain sync --source workspace`; do not delete it without approval.
+- Validate the new ambient path with a real Pi turn: volunteer pointers, boundary pack after compaction, periodic delta, and explicit memory/page/graph tool round-trips. AgentMux remains unavailable, so local model-backed gbrain work is not yet tested.
+- The remaining doctor warnings about bootstrap receipt/serve/reflex state are old or expected custom-harness residue unless a live lock persists.
+- Dream remains deferred and should be added only after the memory-only path passes a clean round-trip test.
 
 # Resume Instructions
-From `/home/poop/Alex-workspace`, restart Pi to load `cccfa1b`. Confirm the ten gbrain bridge tools and active-tool injection, then send a non-command prompt and verify the hidden gbrain recall context. When port 8002 is serving, run `/alex-model`; compare `curl http://127.0.0.1:8002/v1/models` with Pi and `gbrain config get models.default`. Only after approval, perform one native gbrain write and read it back; do not initialize, reset, reindex, or alter the existing brain outside that approved test.
+From `/home/poop/Alex-workspace`, restart Pi to load the uncommitted ambient/source-routing changes. Test one non-command turn and inspect gbrain volunteer usage; then test session boundary/compaction behavior and one approved native page/fact/graph round-trip. When AgentMux serves on port 8002, verify Pi model selection, `models.default`, and a gbrain synthesize/facts-backstop call all use the local endpoint. Do not initialize, reset, reindex, or delete existing brain data without explicit approval.
